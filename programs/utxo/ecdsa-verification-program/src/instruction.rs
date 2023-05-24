@@ -17,8 +17,8 @@ pub struct WithdrawSolArgs {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
 pub struct VerifyTransferArgs {
     pub witness: Vec<Vec<u8>>,
-    pub input_amount: u8,
-    pub output_amount: u8,
+    pub input_amount: usize,
+    pub output_amount: usize,
 }
 
 #[repr(C)]

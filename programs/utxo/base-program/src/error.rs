@@ -31,6 +31,9 @@ pub enum UTXOError {
     /// 7 Invalid witness
     #[error("Invalid witness")]
     InvalidWitness,
+    /// 8 Invalid inputs & outputs data
+    #[error("Invalid transfer data")]
+    InvalidTransferData,
 }
 
 

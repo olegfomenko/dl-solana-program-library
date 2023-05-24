@@ -38,7 +38,7 @@ pub fn process_instruction<'a>(
         }
         Instruction::Transfer(args) => {
             msg!("Instruction: Transfer UTXO");
-            Ok(())
+            process_transfer(program_id, accounts, args.witness, args.input_amount, args.output_amount)
         }
     }
 }
@@ -170,16 +170,9 @@ pub fn process_withdraw_sol<'a>(
         return Err(UTXOError::WrongSeed.into());
     }
 
-    let amount_array:[u8; size_of::<u64>()] = utxo.content_data.as_slice().try_into().expect("invalid size");
+    let amount_array: [u8; size_of::<u64>()] = utxo.content_data.as_slice().try_into().expect("invalid size");
     let amount = u64::from_be_bytes(amount_array);
 
-
-    // &[
-    //     upgrade_admin.contract.as_ref(),
-    //     upgrade_admin.nonce.to_be_bytes().as_ref(),
-    //     HASH_CONSTANT.as_bytes(),
-    //     upgrade_buffer.key.as_ref(),
-    // ].concat()
 
     let (signature, reid) = parse_witness(&witness)?;
     let public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH] = utxo.verification_data.as_slice().try_into().expect("invalid size");
@@ -223,6 +216,121 @@ pub fn process_withdraw_sol<'a>(
             admin_info.clone(),
         ],
     )?;
+
+    Ok(())
+}
+
+
+pub fn process_transfer<'a>(
+    program_id: &'a Pubkey,
+    accounts: &'a [AccountInfo<'a>],
+    witness: Vec<Vec<u8>>,
+    inputs_amount: usize,
+    outputs_amount: usize,
+) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+
+    let base_program = next_account_info(account_info_iter)?;
+
+    if witness.len() != inputs_amount {
+        return Err(UTXOError::InvalidTransferData.into());
+    }
+
+    let mut inputs: Vec<&AccountInfo> = Vec::new();
+    let mut outputs: Vec<&AccountInfo> = Vec::new();
+
+    let mut hash_keys: Vec<&[u8]> = Vec::new();
+    hash_keys.push(&[]);
+
+    let mut input_sum: u64 = 0;
+    let mut output_sum: u64 = 0;
+
+    for i in 0..outputs_amount {
+        let output = next_account_info(account_info_iter)?;
+        outputs.push(output);
+        hash_keys.push(output.key.as_ref());
+
+        let utxo: UTXO = BorshDeserialize::deserialize(&mut output.data.borrow_mut().as_ref())?;
+        if !utxo.is_initialized {
+            return Err(UTXOError::NotInitialized.into());
+        }
+
+        let (utxo_key, bump) = Pubkey::find_program_address(&[utxo.account_seed.as_slice()], program_id);
+        if utxo_key != *output.key {
+            return Err(UTXOError::WrongSeed.into());
+        }
+
+        let amount_array: [u8; size_of::<u64>()] = utxo.content_data.as_slice().try_into().expect("invalid size");
+        let amount = u64::from_be_bytes(amount_array);
+        output_sum += amount;
+
+        let activate_utxo_instruction = activate_utxo(
+            *base_program.key,
+            program_id,
+            utxo.account_seed,
+        );
+
+        msg!("Activating UTXO {}", i);
+        invoke_signed(
+            &activate_utxo_instruction,
+            &[
+                output.clone(),
+            ],
+            &[&[utxo.account_seed.as_slice(), &[bump]]],
+        )?;
+    }
+
+    for i in 0..inputs_amount {
+        let input = next_account_info(account_info_iter)?;
+        inputs.push(input);
+
+        let utxo: UTXO = BorshDeserialize::deserialize(&mut input.data.borrow_mut().as_ref())?;
+        if !utxo.is_initialized {
+            return Err(UTXOError::NotInitialized.into());
+        }
+
+        let (utxo_key, bump) = Pubkey::find_program_address(&[utxo.account_seed.as_slice()], program_id);
+        if utxo_key != *input.key {
+            return Err(UTXOError::WrongSeed.into());
+        }
+
+        let amount_array: [u8; size_of::<u64>()] = utxo.content_data.as_slice().try_into().expect("invalid size");
+        let amount = u64::from_be_bytes(amount_array);
+        input_sum += amount;
+
+        hash_keys[0] = input.key.as_ref();
+
+        let (signature, reid) = parse_witness(witness.get(i).unwrap())?;
+        let public_key: [u8; SECP256K1_PUBLIC_KEY_LENGTH] = utxo.verification_data.as_slice().try_into().expect("invalid size");
+
+        verify_ecdsa_signature(
+            solana_program::keccak::hash(
+                &hash_keys.as_slice().concat()
+            ).as_ref(),
+            signature.as_slice(),
+            reid,
+            public_key,
+        )?;
+
+        let deactivate_utxo_instruction = deactivate_utxo(
+            *base_program.key,
+            program_id,
+            utxo.account_seed,
+        );
+
+        msg!("Deactivating UTXO {}", i);
+        invoke_signed(
+            &deactivate_utxo_instruction,
+            &[
+                input.clone(),
+            ],
+            &[&[utxo.account_seed.as_slice(), &[bump]]],
+        )?;
+    }
+
+    if input_sum != output_sum {
+        return Err(UTXOError::InvalidTransferData.into());
+    }
 
     Ok(())
 }
