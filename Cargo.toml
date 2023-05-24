@@ -1,4 +1,6 @@
 [workspace]
 members=[
     "programs/upgrade-program",
+    "programs/utxo/base-program",
+    "programs/utxo/ecdsa-verification-program",
 ]

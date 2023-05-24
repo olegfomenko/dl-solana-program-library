@@ -4,8 +4,8 @@
   "description": "",
   "scripts": {
     "build:upgrade-program": "cargo build-bpf --manifest-path=./programs/upgrade-program/Cargo.toml --bpf-out-dir=./dist/program",
-    "clean:upgrade-program": "cargo clean --manifest-path=./programs/upgrade-program/Cargo.toml && rm -rf ./dist",
-    "test:upgrade-program": "cargo test-bpf --manifest-path=../programs/upgrade-program/Cargo.toml"
+    "build:utxo-base-program": "cargo build-bpf --manifest-path=./programs/utxo/base-program/Cargo.toml --bpf-out-dir=./dist/program",
+    "build:utxo-ecdsa-verification-program": "cargo build-bpf --manifest-path=./programs/utxo/ecdsa-verification-program/Cargo.toml --bpf-out-dir=./dist/program"
   },
   "dependencies": {
     "@solana/web3.js": "^1.7.0",
