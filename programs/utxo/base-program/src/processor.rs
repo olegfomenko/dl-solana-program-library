@@ -47,7 +47,7 @@ pub fn process_init_utxo<'a>(
     let system_program = next_account_info(account_info_iter)?;
     let rent_info = next_account_info(account_info_iter)?;
 
-    let (utxo_key, bump) = Pubkey::find_program_address(&[account_seed.as_slice()], &verification_program);
+    let (utxo_key, _) = Pubkey::find_program_address(&[account_seed.as_slice()], &verification_program);
     if utxo_key != *utxo_info.key {
         return Err(UTXOError::WrongSeed.into());
     }
@@ -107,6 +107,10 @@ pub fn process_activate<'a>(
 
     if !utxo_info.is_signer {
         return Err(UTXOError::Unsigned.into());
+    }
+
+    if utxo.is_active {
+        return Err(UTXOError::AlreadyActivated.into());
     }
 
     utxo.is_active = true;

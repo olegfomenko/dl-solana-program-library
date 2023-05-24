@@ -19,6 +19,18 @@ pub enum UTXOError {
     /// 3 Account should be signer
     #[error("Unsigned")]
     Unsigned,
+    /// 4 Wrong admin account
+    #[error("Wrong admin")]
+    WrongAdmin,
+    /// 5 UTXO already activated
+    #[error("UTXO already activated")]
+    AlreadyActivated,
+    /// 6 Invalid UTXO data
+    #[error("Invalid UTXO data")]
+    InvalidData,
+    /// 7 Invalid witness
+    #[error("Invalid witness")]
+    InvalidWitness,
 }
 
 
